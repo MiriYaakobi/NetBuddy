@@ -2,6 +2,7 @@ import os
 import json
 import time
 import logging
+import ipaddress
 from dotenv import load_dotenv
 from openai import OpenAI, RateLimitError
 from bidi.algorithm import get_display
@@ -31,22 +32,64 @@ def search_course_notes(topic: str) -> str:
     return fake_notes.get(topic.lower(), f"לא מצאתי סיכומים על הנושא: {topic}")
 
 
-tools = [{
-    "type": "function",
-    "function": {
-        "name": "search_course_notes",
-        "description": "מחפש בסיכומי הקורס בתקשורת מחשבים. השתמש בכלי זה כשהמשתמש שואל שאלות על חומר הלימוד כדי להביא עובדות מדויקות.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "topic": {"type": "string", "description": "The networking topic to search for in English (e.g., subnetting, tcp)"}
+def calculate_subnet(cidr: str) -> str:
+    """Calculates network details for a given CIDR block."""
+    try:
+        # Create a network object (strict=False allows host IP inputs)
+        network = ipaddress.IPv4Network(cidr, strict=False)
+        
+        # Calculate usable hosts (excluding network and broadcast addresses)
+        usable_hosts = network.num_addresses - 2 if network.num_addresses > 2 else 0
+        
+        return (f"Network Address: {network.network_address}, "
+                f"Broadcast Address: {network.broadcast_address}, "
+                f"Usable Hosts: {usable_hosts}, "
+                f"Netmask: {network.netmask}")
+    except ValueError as e:
+        return f"Error: Invalid CIDR format. Details: {e}"
+
+
+# Define all tools available to the LLM
+tools = [
+    {
+        "type": "function",
+        "function": {
+            "name": "search_course_notes",
+            "description": "Searches the Computer Communications course notes. Use this tool when the user asks questions about the study material to retrieve accurate facts.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "topic": {"type": "string", "description": "The networking topic to search for in English (e.g., subnetting, tcp)"}
+                },
+                "required": ["topic"],
             },
-            "required": ["topic"],
         },
     },
-}]
+    {
+        "type": "function",
+        "function": {
+            "name": "calculate_subnet",
+            "description": "Calculates network data (Subnetting) based on an IP address and CIDR prefix. Use this tool when the user asks to calculate a network address, broadcast, or number of usable hosts.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "cidr": {
+                        "type": "string",
+                        "description": "The IP address with CIDR notation, e.g., '10.0.0.0/16' or '192.168.1.5/24'"
+                    }
+                },
+                "required": ["cidr"],
+            },
+        },
+    }
+]
 
-available_tools = {"search_course_notes": search_course_notes}
+# Map tool names to actual Python functions
+available_tools = {
+    "search_course_notes": search_course_notes,
+    "calculate_subnet": calculate_subnet
+}
+
 
 # 2. Add Rate Limit Handling (Exponential Backoff)
 def call_with_retry(messages, tools, max_retries=4):
@@ -81,7 +124,7 @@ def run_agent(user_message: str, max_steps: int = 5) -> str:
     for step in range(max_steps):
         log.info(f"--- Agent is thinking (Step {step + 1}) ---") 
         
-        # Use our new retry function instead of calling client directly
+        # Use our retry function instead of calling the client directly
         response = call_with_retry(messages, tools)
         
         # Track Tokens
@@ -118,5 +161,6 @@ def run_agent(user_message: str, max_steps: int = 5) -> str:
 
 
 if __name__ == "__main__":
-    answer = run_agent("היי! מה התפקיד של פרוטוקול TCP לפי הסיכומים שלי?")
+    # Testing the new subnetting tool
+    answer = run_agent("היי! תוכל לחשב לי כמה כתובות מארחים (hosts) חוקיות יש ברשת 192.168.5.0/26, ומה כתובת ה-Broadcast שלה?")
     print(get_display(answer))
