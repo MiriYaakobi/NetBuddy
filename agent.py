@@ -33,40 +33,32 @@ SUSPICIOUS_PATTERNS = [
     "system prompt"
 ]
 
-# --- RAG Database Initialization (ChromaDB) ---
-# Initialize local in-memory Chroma client for vector-based semantic search
+# --- Real File-Based RAG Initialization (ChromaDB) ---
 chroma_client = chromadb.Client()
 collection = chroma_client.get_or_create_collection(name="course_notes")
 
-# Populate the vector collection with course notes documents if empty
-if collection.count() == 0:
-    collection.add(
-        documents=[
-            "פרוטוקול TCP מבטיח אמינות בהעברת נתונים בעזרת לחיצת יד משולשת (three-way handshake) ובקרה על זרימת החבילות.",
-            "חישוב Subnetting נועד לחלק רשת גדולה לתתי-רשתות קטנות באמצעות כתובת רשת ומסיכת רשת.",
-            "VLANs (Virtual LANs) מאפשרים חלוקה לוגית של רשת פיזית אחת למספר רשתות נפרדות לשיפור הביצועים והאבטחה.",
-            "פרוטוקול Spanning Tree Protocol (STP) מונע לולאות (loops) ברשתות של מתגים על ידי חסימה לוגית של נתיבים מיותרים."
-        ],
-        ids=["doc_tcp", "doc_subnet", "doc_vlan", "doc_stp"]
-    )
+# Load course notes dynamically from an external text file (True RAG architecture)
+notes_file_path = "course_notes.txt"
+if collection.count() == 0 and os.path.exists(notes_file_path):
+    with open(notes_file_path, "r", encoding="utf-8") as f:
+        content = f.read()
+        documents = [doc.strip() for doc in content.split("\n\n") if doc.strip()]
+        ids = [f"doc_{i}" for i in range(len(documents))]
+        if documents:
+            collection.add(documents=documents, ids=ids)
+            log.info(f"Successfully loaded {len(documents)} documents into ChromaDB from {notes_file_path}")
 
 
 # --- Tools ---
 def search_course_notes(topic: str) -> str:
-    """Searches the course notes using ChromaDB semantic vector search with a relevance threshold."""
+    """Searches the external course notes file using ChromaDB semantic vector search with a relevance threshold."""
     try:
-        # Query the vector database semantically, requesting documents and their distance scores
         results = collection.query(query_texts=[topic], n_results=1, include=["documents", "distances"])
         
         if results and results["documents"] and results["documents"][0]:
-            # Check distance threshold to prevent returning irrelevant documents for unrelated topics (like OSPF)
-            # Lower distance means higher semantic similarity in ChromaDB
             distance = results["distances"][0][0] if "distances" in results and results["distances"] else 0.0
-            
-            # If the distance is too large, the document is not actually relevant to the query
             if distance > 1.2:
                 return f"לא מצאתי סיכומים על הנושא: {topic}"
-                
             return results["documents"][0][0]
             
         return f"לא מצאתי סיכומים על הנושא: {topic}"
@@ -76,7 +68,6 @@ def search_course_notes(topic: str) -> str:
 def calculate_subnet(cidr: str) -> str:
     """Calculates network details for a given CIDR block."""
     try:
-        # Parse IPv4 network block and compute key subnet attributes
         network = ipaddress.IPv4Network(cidr, strict=False)
         usable_hosts = network.num_addresses - 2 if network.num_addresses > 2 else 0
         return f"Network Address: {network.network_address}, Broadcast Address: {network.broadcast_address}, Usable Hosts: {usable_hosts}, Netmask: {network.netmask}"
@@ -88,7 +79,7 @@ tools = [
         "type": "function",
         "function": {
             "name": "search_course_notes",
-            "description": "Searches the Computer Communications course notes using semantic vector search.",
+            "description": "Searches the external Computer Communications course notes file using semantic vector search.",
             "parameters": {
                 "type": "object",
                 "properties": {"topic": {"type": "string"}},
@@ -118,7 +109,7 @@ available_tools = {
 # --- Agent Logic ---
 def call_with_retry(messages, tools, max_retries=3):
     """Calls the LLM API with custom exponential backoff."""
-    wait_times = [2, 5, 10]  # Defined wait intervals for retry attempts in seconds
+    wait_times = [2, 5, 10] 
     for attempt in range(max_retries):
         try:
             return client.chat.completions.create(
@@ -142,11 +133,10 @@ def run_agent(user_message: str, max_steps: int = 5) -> str:
         log.warning(f"Security Alert: Blocked potential prompt injection attempt -> {user_message}")
         return "הבקשה נחסמה: זוהה ניסיון לעקוף את ההוראות המאובטחות של המערכת."
 
-    # Define strict system instructions to guide agent behavior and tool selection
-    sys_prompt = "אתה עוזר לימודים אישי. חובה: 1. חישובים - רק כלי חישוב. 2. תיאוריה - רק כלי חיפוש. 3. מיד אחרי כלי - ענה. 4. אל תמציא."
+    # Refined System Prompt: Enforce strict immediate answering upon receiving tool results
+    sys_prompt = "אתה עוזר לימודים אישי. חובה: 1. חישובים - רק כלי חישוב. 2. תיאוריה - רק כלי חיפוש. 3. מיד אחרי קבלת תוצאה מהכלי - ענה למשתמש מיד ואל תקרא לכלי נוסף. 4. אל תמציא."
     messages = [{"role": "system", "content": sys_prompt}, {"role": "user", "content": user_message}]
     
-    # Iterate through reasoning steps bounded by max_steps to prevent infinite loops
     for step in range(max_steps):
         log.info(f"--- Agent Step {step + 1} ---")
         try:
