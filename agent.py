@@ -3,6 +3,7 @@ import json
 import time
 import logging
 import ipaddress
+import chromadb
 from dotenv import load_dotenv
 from openai import OpenAI, RateLimitError
 
@@ -24,7 +25,6 @@ client = OpenAI(
 MODEL = "qwen/qwen3.6-27b"
 
 # --- Security Guardrails Configuration ---
-# List of suspicious phrases or patterns used to detect potential prompt injection attacks
 SUSPICIOUS_PATTERNS = [
     "התעלם מההוראות",
     "ignore previous",
@@ -33,17 +33,45 @@ SUSPICIOUS_PATTERNS = [
     "system prompt"
 ]
 
+# --- RAG Database Initialization (ChromaDB) ---
+# Initialize local in-memory Chroma client for vector-based semantic search
+chroma_client = chromadb.Client()
+collection = chroma_client.get_or_create_collection(name="course_notes")
+
+# Populate the vector collection with course notes documents if empty
+if collection.count() == 0:
+    collection.add(
+        documents=[
+            "פרוטוקול TCP מבטיח אמינות בהעברת נתונים בעזרת לחיצת יד משולשת (three-way handshake) ובקרה על זרימת החבילות.",
+            "חישוב Subnetting נועד לחלק רשת גדולה לתתי-רשתות קטנות באמצעות כתובת רשת ומסיכת רשת.",
+            "VLANs (Virtual LANs) מאפשרים חלוקה לוגית של רשת פיזית אחת למספר רשתות נפרדות לשיפור הביצועים והאבטחה.",
+            "פרוטוקול Spanning Tree Protocol (STP) מונע לולאות (loops) ברשתות של מתגים על ידי חסימה לוגית של נתיבים מיותרים."
+        ],
+        ids=["doc_tcp", "doc_subnet", "doc_vlan", "doc_stp"]
+    )
+
+
 # --- Tools ---
 def search_course_notes(topic: str) -> str:
-    """Returns summarized notes for a given Computer Communications topic."""
-    # Mock database containing structured summaries for networking course topics
-    fake_notes = {
-        "subnetting": "חישוב Subnetting נועד לחלק רשת גדולה לתתי-רשתות קטנות.",
-        "tcp": "פרוטוקול TCP מבטיח אמינות בהעברת נתונים בעזרת לחיצת יד משולשת.",
-        "vlans": "VLANs (Virtual LANs) מאפשרים חלוקה לוגית של רשת פיזית אחת למספר רשתות נפרדות.",
-        "stp": "פרוטוקול Spanning Tree Protocol (STP) מונע לולאות (loops) ברשתות של מתגים."
-    }
-    return fake_notes.get(topic.lower(), f"לא מצאתי סיכומים על הנושא: {topic}")
+    """Searches the course notes using ChromaDB semantic vector search with a relevance threshold."""
+    try:
+        # Query the vector database semantically, requesting documents and their distance scores
+        results = collection.query(query_texts=[topic], n_results=1, include=["documents", "distances"])
+        
+        if results and results["documents"] and results["documents"][0]:
+            # Check distance threshold to prevent returning irrelevant documents for unrelated topics (like OSPF)
+            # Lower distance means higher semantic similarity in ChromaDB
+            distance = results["distances"][0][0] if "distances" in results and results["distances"] else 0.0
+            
+            # If the distance is too large, the document is not actually relevant to the query
+            if distance > 1.2:
+                return f"לא מצאתי סיכומים על הנושא: {topic}"
+                
+            return results["documents"][0][0]
+            
+        return f"לא מצאתי סיכומים על הנושא: {topic}"
+    except Exception as e:
+        return f"Error querying vector database: {e}"
 
 def calculate_subnet(cidr: str) -> str:
     """Calculates network details for a given CIDR block."""
@@ -60,7 +88,7 @@ tools = [
         "type": "function",
         "function": {
             "name": "search_course_notes",
-            "description": "Searches the Computer Communications course notes.",
+            "description": "Searches the Computer Communications course notes using semantic vector search.",
             "parameters": {
                 "type": "object",
                 "properties": {"topic": {"type": "string"}},
@@ -93,7 +121,6 @@ def call_with_retry(messages, tools, max_retries=3):
     wait_times = [2, 5, 10]  # Defined wait intervals for retry attempts in seconds
     for attempt in range(max_retries):
         try:
-            # Send chat completion request to the Groq LLM endpoint
             return client.chat.completions.create(
                 model=MODEL, 
                 messages=messages, 
@@ -102,7 +129,6 @@ def call_with_retry(messages, tools, max_retries=3):
                 parallel_tool_calls=False 
             )
         except Exception as e:
-            # Handle API exceptions and apply backoff strategy before final failure
             if attempt == max_retries - 1:
                 log.error(f"Critical failure: {e}")
                 raise
@@ -128,11 +154,9 @@ def run_agent(user_message: str, max_steps: int = 5) -> str:
             msg = response.choices[0].message
             messages.append(msg)
             
-            # Terminate loop and return content if no further tool calls are required
             if not msg.tool_calls:
                 return msg.content
                 
-            # Execute requested tool calls and append results back to message history
             for call in msg.tool_calls:
                 fn = available_tools[call.function.name]
                 args = json.loads(call.function.arguments)

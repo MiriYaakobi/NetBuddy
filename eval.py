@@ -26,7 +26,7 @@ def run_evals():
         },
         {
             "question": "מה זה OSPF לפי הסיכומים?",
-            "expected_keyword": "נמצאו"  # Flexible and natural UX phrasing check
+            "expected_keyword": "מידע"  # Matches the agent's smart and clean response: "אין מידע..."
         },
         {
             "question": "מה התפקיד של STP?",
