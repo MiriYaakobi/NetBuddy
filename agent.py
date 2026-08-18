@@ -7,22 +7,32 @@ from dotenv import load_dotenv
 from openai import OpenAI, RateLimitError
 from bidi.algorithm import get_display
 
-# 1. Setup Observability (Logging)
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
+# --- Verbose Toggle ---
+# True = Show all internal steps (agent thoughts, tool executions). 
+# False = Quiet mode, only show the final answer to the user.
+VERBOSE_MODE = True
+
+# Configure logging dynamically based on the VERBOSE_MODE flag
+log_level = logging.INFO if VERBOSE_MODE else logging.WARNING
+logging.basicConfig(level=log_level, format="%(asctime)s %(message)s")
 log = logging.getLogger("agent")
 
+# Load secrets from the .env file into environment variables
 load_dotenv()
 
+# Initialize the OpenAI client pointing to Google's Gemini API endpoint
 client = OpenAI(
     base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
     api_key=os.environ["GEMINI_API_KEY"],
 )
 
+# Define the specific model version to use
 MODEL = "gemini-3-flash-preview"
 
 
 def search_course_notes(topic: str) -> str:
     """Returns summarized notes for a given Computer Communications topic."""
+    # Mock database representing personal course notes
     fake_notes = {
         "subnetting": "חישוב Subnetting נועד לחלק רשת גדולה לתתי-רשתות קטנות.",
         "tcp": "פרוטוקול TCP מבטיח אמינות בהעברת נתונים בעזרת לחיצת יד משולשת.",
@@ -35,7 +45,7 @@ def search_course_notes(topic: str) -> str:
 def calculate_subnet(cidr: str) -> str:
     """Calculates network details for a given CIDR block."""
     try:
-        # Create a network object (strict=False allows host IP inputs)
+        # Create a network object; strict=False allows host IPs with subnet masks
         network = ipaddress.IPv4Network(cidr, strict=False)
         
         # Calculate usable hosts (excluding network and broadcast addresses)
@@ -49,7 +59,7 @@ def calculate_subnet(cidr: str) -> str:
         return f"Error: Invalid CIDR format. Details: {e}"
 
 
-# Define all tools available to the LLM
+# Define all tools available to the LLM using JSON Schema format
 tools = [
     {
         "type": "function",
@@ -73,10 +83,7 @@ tools = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "cidr": {
-                        "type": "string",
-                        "description": "The IP address with CIDR notation, e.g., '10.0.0.0/16' or '192.168.1.5/24'"
-                    }
+                    "cidr": {"type": "string", "description": "The IP address with CIDR notation, e.g., '10.0.0.0/16' or '192.168.1.5/24'"}
                 },
                 "required": ["cidr"],
             },
@@ -84,50 +91,50 @@ tools = [
     }
 ]
 
-# Map tool names to actual Python functions
+# Map the tool names (strings) to the actual Python functions
 available_tools = {
     "search_course_notes": search_course_notes,
     "calculate_subnet": calculate_subnet
 }
 
 
-# 2. Add Rate Limit Handling (Exponential Backoff)
 def call_with_retry(messages, tools, max_retries=4):
-    """Calls the LLM API with exponential backoff for rate limits."""
+    """Calls the LLM API with exponential backoff to handle rate limits."""
     for attempt in range(max_retries):
         try:
             return client.chat.completions.create(
                 model=MODEL, 
                 messages=messages, 
                 tools=tools,
-                temperature=0
+                temperature=0  # Deterministic output for agent logic
             )
         except RateLimitError:
-            wait = 2 ** attempt  # 1, 2, 4, 8 seconds
+            wait = 2 ** attempt  # Exponentially increase wait time: 1, 2, 4, 8 seconds
             log.warning(f"Rate limit reached, waiting {wait} seconds...")
             time.sleep(wait)
     raise RuntimeError("Failed after all retry attempts due to Rate Limits.")
 
 
 def run_agent(user_message: str, max_steps: int = 5) -> str:
-    """Runs the main agent loop, handling tool calls and responses."""
+    """Runs the main agent loop (ReAct pattern), handling tool calls and responses."""
     
+    # Initialize conversation history with the system prompt and the user's query
     messages = [
         {"role": "system", "content": "אתה עוזר לימודים אישי לקורס תקשורת מחשבים. ענה בעברית. חובה עליך להשתמש בכלים כדי לחפש בסיכומים לפני שאתה עונה. אם אין מספיק מידע בסיכומים, אמור זאת מפורשות במקום להמציא נתונים."},
         {"role": "user", "content": user_message},
     ]
 
-    # 3. Initialize Token Tracking Variables
+    # Initialize tracking variables for token usage
     total_prompt_tokens = 0
     total_completion_tokens = 0
 
+    # Agent Loop: limit iterations to prevent infinite runaway loops
     for step in range(max_steps):
         log.info(f"--- Agent is thinking (Step {step + 1}) ---") 
         
-        # Use our retry function instead of calling the client directly
         response = call_with_retry(messages, tools)
         
-        # Track Tokens
+        # Accumulate token usage from the current API response
         if response.usage:
             total_prompt_tokens += response.usage.prompt_tokens
             total_completion_tokens += response.usage.completion_tokens
@@ -135,16 +142,26 @@ def run_agent(user_message: str, max_steps: int = 5) -> str:
         msg = response.choices[0].message
         messages.append(msg) 
 
+        # Decision Point: Did the model request any tools?
         if not msg.tool_calls:
-            # Print Final Token Usage before returning
-            log.info(f"Total Tokens Used -> Prompt: {total_prompt_tokens}, Completion: {total_completion_tokens}, Total: {total_prompt_tokens + total_completion_tokens}")
+            
+            # Live Cost Calculation based on estimated Gemini Flash pricing
+            # ($0.075 per 1M prompt tokens, $0.30 per 1M completion tokens)
+            prompt_cost = (total_prompt_tokens / 1_000_000) * 0.075
+            comp_cost = (total_completion_tokens / 1_000_000) * 0.30
+            total_cost_usd = prompt_cost + comp_cost
+            
+            log.info(f"Total Tokens -> Prompt: {total_prompt_tokens}, Completion: {total_completion_tokens}")
+            log.info(f"Estimated Cost -> ${total_cost_usd:.6f} USD")
+            
+            # No tool requested means the agent has reached a final answer
             return msg.content
 
+        # Execute all tools requested by the model
         for call in msg.tool_calls:
             fn = available_tools[call.function.name]
             args = json.loads(call.function.arguments) 
             
-            # Upgraded Observability logging
             log.info(f"Executing tool: {call.function.name} | parameters: {args}")
             
             try:
@@ -152,15 +169,17 @@ def run_agent(user_message: str, max_steps: int = 5) -> str:
             except Exception as e:
                 result = f"Error executing tool: {e}"
             
-            # Log the result
             log.info(f"Tool result: {str(result)[:100]}")
             
+            # Append the tool's result back to the conversation history
             messages.append({"role": "tool", "tool_call_id": call.id, "content": str(result)})
 
     return "הגעתי למקסימום הצעדים בלי תשובה סופית."
 
 
 if __name__ == "__main__":
-    # Testing the new subnetting tool
+    # Test the agent with a complex networking question
     answer = run_agent("היי! תוכל לחשב לי כמה כתובות מארחים (hosts) חוקיות יש ברשת 192.168.5.0/26, ומה כתובת ה-Broadcast שלה?")
+    
+    # Fix Hebrew RTL display rendering in the terminal
     print(get_display(answer))
