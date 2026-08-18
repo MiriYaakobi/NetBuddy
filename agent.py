@@ -51,15 +51,18 @@ if collection.count() == 0 and os.path.exists(notes_file_path):
 
 # --- Tools ---
 def search_course_notes(topic: str) -> str:
-    """Searches the external course notes file using ChromaDB semantic vector search with a relevance threshold."""
+    """Searches the external course notes file using ChromaDB semantic vector search."""
     try:
-        results = collection.query(query_texts=[topic], n_results=1, include=["documents", "distances"])
+        results = collection.query(query_texts=[topic], n_results=4, include=["documents", "distances"])
         
         if results and results["documents"] and results["documents"][0]:
-            distance = results["distances"][0][0] if "distances" in results and results["distances"] else 0.0
-            if distance > 1.2:
-                return f"לא מצאתי סיכומים על הנושא: {topic}"
-            return results["documents"][0][0]
+            valid_docs = []
+            for doc, dist in zip(results["documents"][0], results["distances"][0]):
+                if dist <= 1.5:
+                    valid_docs.append(doc)
+            
+            if valid_docs:
+                return "\n\n".join(valid_docs)
             
         return f"לא מצאתי סיכומים על הנושא: {topic}"
     except Exception as e:
@@ -107,7 +110,7 @@ available_tools = {
 }
 
 # --- Agent Logic ---
-def call_with_retry(messages, tools, max_retries=3):
+def call_with_retry(messages, tools, stream=False, max_retries=3):
     """Calls the LLM API with custom exponential backoff."""
     wait_times = [2, 5, 10] 
     for attempt in range(max_retries):
@@ -117,7 +120,8 @@ def call_with_retry(messages, tools, max_retries=3):
                 messages=messages, 
                 tools=tools,
                 temperature=0,
-                parallel_tool_calls=False 
+                parallel_tool_calls=False,
+                stream=stream 
             )
         except Exception as e:
             if attempt == max_retries - 1:
@@ -156,3 +160,44 @@ def run_agent(user_message: str, max_steps: int = 5) -> str:
             return f"Error occurred: {str(e)}"
             
     return "הגעתי למקסימום צעדים."
+
+def run_agent_stream(messages_history: list, max_steps: int = 5):
+    """Generator function that takes chat history and streams response."""
+    
+    latest_user_msg = messages_history[-1]["content"]
+    if any(pattern.lower() in latest_user_msg.lower() for pattern in SUSPICIOUS_PATTERNS):
+        yield "הבקשה נחסמה: זוהה ניסיון לעקוף את ההוראות המאובטחות של המערכת."
+        return
+
+    sys_prompt = "אתה עוזר לימודים אישי. חובה: 1. חישובים - רק כלי. 2. תיאוריה - רק כלי. 3. מיד אחרי כלי - ענה. 4. אל תמציא. 5. אם המשתמש מבקש רשימה, קרא לכלי, סרוק את כל התוצאות והצג את כולן."
+    
+    messages = [{"role": "system", "content": sys_prompt}]
+    
+    messages.extend(messages_history[-4:])
+    
+    for step in range(max_steps):
+        try:
+            response = call_with_retry(messages, tools, stream=False)
+            msg = response.choices[0].message
+            
+            if msg.tool_calls:
+                messages.append(msg)
+                for call in msg.tool_calls:
+                    fn = available_tools[call.function.name]
+                    args = json.loads(call.function.arguments)
+                    result = fn(**args)
+                    messages.append({"role": "tool", "tool_call_id": call.id, "content": str(result)})
+                continue
+                
+            stream_response = call_with_retry(messages, tools, stream=True)
+            for chunk in stream_response:
+                delta = chunk.choices[0].delta.content
+                if delta:
+                    yield delta
+            return
+            
+        except Exception as e:
+            yield f"Error occurred: {str(e)}"
+            return
+            
+    yield "הגעתי למקסימום צעדים."

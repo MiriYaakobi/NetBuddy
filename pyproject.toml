@@ -9,4 +9,5 @@ dependencies = [
     "openai>=3.2.0",
     "python-bidi>=0.6.11",
     "python-dotenv>=1.2.3",
+    "streamlit>=1.61.1",
 ]
