@@ -137,6 +137,10 @@ p, h1, h2, h3, .stMarkdown {
     color: #00f3ff !important; background-color: transparent !important;
 }
 [data-testid="stChatInputSubmitButton"] svg { fill: #00f3ff !important; }
+
+h1, h2, h3, h4, h5, h6, p, li {
+    color: #ffffff !important;
+}
 </style>
 """
 st.markdown(custom_css, unsafe_allow_html=True)
