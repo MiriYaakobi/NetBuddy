@@ -30,7 +30,11 @@ Here you can see the terminal output of our evaluation suite. The agent successf
 
 | | |
 | :---: | :---: |
-| ![Eval Terminal Part 1](./images/terminal-1.png) | ![Eval Terminal Part 2](./images/terminal-2.png) |
+| <img src="./images/terminal-1.png" alt="Eval Terminal Part 1" width="100%"> | <img src="./images/terminal-2.png" alt="Eval Terminal Part 2" width="100%"> |
+
+<div align="center">
+  <img src="./images/terminal-3.png" alt="Eval Terminal Part 3" width="49%">
+</div>
 
 ---
 
