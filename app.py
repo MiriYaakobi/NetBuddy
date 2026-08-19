@@ -3,7 +3,7 @@ from agent import run_agent_stream
 
 st.set_page_config(page_title="NetBuddy", page_icon="🎓", layout="centered")
 
-# --- Updated CSS: Low input bar, standard header, and text overflow prevention ---
+# Custom RTL chat layout and fixed bottom input styling.
 custom_css = """
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Heebo:wght@400;700;800&display=swap');
