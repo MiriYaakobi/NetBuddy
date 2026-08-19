@@ -141,6 +141,11 @@ p, h1, h2, h3, .stMarkdown {
 h1, h2, h3, h4, h5, h6, p, li {
     color: #ffffff !important;
 }
+h1, h2, h3 {
+    font-size: 1.3rem !important;
+    margin-top: 10px !important;
+    margin-bottom: 10px !important;
+}
 </style>
 """
 st.markdown(custom_css, unsafe_allow_html=True)
