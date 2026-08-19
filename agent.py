@@ -179,8 +179,9 @@ def run_agent(user_message: str, max_steps: int = 5) -> str:
                 log.info(f"Step {step + 1} | tool result={str(result)[:100]}")
                 
                 messages.append({"role": "tool", "tool_call_id": call.id, "content": str(result)})
-        except Exception as e:
-            return f"Error occurred: {str(e)}"
+        except Exception:
+            log.exception("Agent execution failed")
+            return "אירעה שגיאה פנימית. נסי שוב בעוד רגע."
             
     log.info(f"Task token total: {total_tokens}")
     return "הגעתי למקסימום צעדים."
