@@ -83,8 +83,9 @@ Follow these steps to set up and run the project locally:
    uv sync
 
 3. Configure environment variables:
-   Create a .env file in the root directory and add your Groq API key:
-   GROQ_API_KEY=your_actual_api_key_here
+   Copy the example environment file and add your Groq API key:
+   cp .env.example .env
+   # Then edit .env and set GROQ_API_KEY=your_actual_api_key_here
 
 ---
 
