@@ -218,12 +218,9 @@ def run_agent_stream(messages_history: list, max_steps: int = 5):
                     messages.append({"role": "tool", "tool_call_id": call.id, "content": str(result)})
                 continue
                 
-            stream_response = call_with_retry(messages, tools, stream=True)
-            for chunk in stream_response:
-                delta = chunk.choices[0].delta.content
-                if delta:
-                    yield delta
-            return
+            if not msg.tool_calls:
+                yield msg.content or ""
+                return
             
         except Exception as e:
             yield f"Error occurred: {str(e)}"
