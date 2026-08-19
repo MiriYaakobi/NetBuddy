@@ -84,6 +84,7 @@ Follow these steps to set up and run the project locally:
 
 3. Configure environment variables:
    Copy the example environment file and add your Groq API key:
+   ```bash
    cp .env.example .env
    # Then edit .env and set GROQ_API_KEY=your_actual_api_key_here
 
