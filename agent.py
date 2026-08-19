@@ -123,12 +123,15 @@ def call_with_retry(messages, tools, stream=False, max_retries=3):
                 parallel_tool_calls=False,
                 stream=stream 
             )
-        except Exception as e:
+        except RateLimitError:
             if attempt == max_retries - 1:
-                log.error(f"Critical failure: {e}")
-                raise
-            time.sleep(wait_times[attempt])
-
+                raise RuntimeError("Groq rate limit persisted after retries") from None
+            wait_seconds = wait_times[attempt]
+            log.warning(f"Rate limit reached; retrying in {wait_seconds} seconds")
+            time.sleep(wait_seconds)
+        except Exception as exc:
+            raise RuntimeError("LLM request failed") from exc
+        
 def run_agent(user_message: str, max_steps: int = 5) -> str:
     """Runs the ReAct agent loop with integrated security guardrails."""
     
