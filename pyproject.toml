@@ -1,7 +1,7 @@
 [project]
 name = "study-agent"
 version = "0.1.0"
-description = "Add your description here"
+description = "Hebrew AI study agent for computer networking courses with RAG and subnet calculations"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
