@@ -1,7 +1,7 @@
 import streamlit as st
 from agent import run_agent_stream
 
-st.set_page_config(page_title="Study Agent Pro", page_icon="🎓", layout="centered")
+st.set_page_config(page_title="NetBuddy", page_icon="🎓", layout="centered")
 
 # --- Updated CSS: Low input bar, standard header, and text overflow prevention ---
 custom_css = """
@@ -28,18 +28,37 @@ p, h1, h2, h3, .stMarkdown {
     padding-bottom: 90px !important;
 }
 
-/* --- Centered captivating headers (no sticky effect!) --- */
-.title-container { 
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-    margin-top: 10px; margin-bottom: 40px; text-align: center;
+/* --- Header --- */
+.title-container {
+    width: 100% !important;
+    text-align: center !important;
+    margin-top: 10px !important;
+    margin-bottom: 40px !important;
 }
+
 .title-main {
     background: -webkit-linear-gradient(45deg, #00f3ff, #b088f9);
-    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-    font-size: 4rem; font-weight: 800; margin: 0 auto !important; display: inline-block;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    font-size: 4.5rem !important;
+    font-weight: 800 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    direction: ltr !important;
+    text-align: center !important;
     text-shadow: 0px 0px 20px rgba(176, 136, 249, 0.4);
 }
-.subtitle-main { color: #d8b4fe !important; font-size: 1.2rem; margin-top: 5px; text-align: center !important;}
+
+.title-container .subtitle-main {
+    color: #d8b4fe !important;
+    font-size: 1.3rem !important;
+    direction: rtl !important;
+    text-align: center !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    display: block !important;
+}
 
 /* --- Chat bubbles and icons arrangement --- */
 [data-testid="stChatMessage"] {
@@ -125,8 +144,8 @@ st.markdown(custom_css, unsafe_allow_html=True)
 # Headers without sticky effect
 st.markdown("""
 <div class='title-container'>
-    <h1 class='title-main'>Study Agent Pro</h1>
-    <p class='subtitle-main'>העוזר האישי שלך לתקשורת מחשבים&rlm;</p>
+    <h1 class='title-main'>NetBuddy</h1>
+    <p class='subtitle-main'>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;חבר ללימודים שתמיד יש לו תשובה</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -135,7 +154,7 @@ AI_AVATAR = "assistant"
 
 if "messages" not in st.session_state:
     st.session_state.messages = [
-        {"role": "assistant", "content": "היי! המערכות מוכנות. איזה נושא נלמד היום?"}
+        {"role": "assistant", "content": "היי! מוכנים לצלול לעולם הרשתות? 🌐"}
     ]
 
 for message in st.session_state.messages:
@@ -143,7 +162,7 @@ for message in st.session_state.messages:
     with st.chat_message(message["role"], avatar=avatar):
         st.markdown(message["content"])
 
-if prompt := st.chat_input("הקלידי כאן שאלות..."):
+if prompt := st.chat_input("כתוב כאן את השאלה שלך..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user", avatar=USER_AVATAR):
         st.markdown(prompt)

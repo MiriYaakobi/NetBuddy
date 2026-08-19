@@ -1,6 +1,36 @@
-# 🎓 Study Agent Pro
+# 🎓 NetBuddy
 
 > An AI-powered study assistant tailored for computer networking courses, featuring semantic RAG (Retrieval-Augmented Generation), automated subnet calculations, security guardrails, and a sleek cyber-lilac Streamlit UI.
+
+**[Live Demo Available Here](https://study-agent-hm83amkejys9ppwfpzyx8a.streamlit.app/)**
+
+---
+
+## 📸 Screenshots & Evaluation
+
+### Web Interface
+
+Here you can see the agent performing accurate subnetting calculations, retrieving networking theory from the loaded course notes, and executing its internal tool-calling process.
+
+| | |
+| :---: | :---: |
+| ![Chat UI Part 1](./images/chat-ui-1.png) | ![Chat UI Part 2](./images/chat-ui-2.png) |
+
+<div align="center">
+  <img src="./images/chat-ui-3.png" alt="Chat UI Part 3" width="49%">
+  <br>
+  <em>Agent dynamically retrieving information from course notes</em>
+</div>
+
+---
+
+### Automated Evaluations (6/6 Tests Passed)
+
+Here you can see the terminal output of our evaluation suite. The agent successfully handled networking calculations, retrieved information from course notes, and blocked security injection attempts locally.
+
+| | |
+| :---: | :---: |
+| ![Eval Terminal Part 1](./images/terminal-1.png) | ![Eval Terminal Part 2](./images/terminal-2.png) |
 
 ---
 
@@ -20,7 +50,7 @@ The system follows a modular ReAct agent architecture, combining local vector se
 
 | Metric | Result |
 | :--- | :--- |
-| **Eval Pass Rate** | High accuracy on core networking tasks |
+| **Eval Pass Rate** | 6/6 tests passed (including security guardrails) |
 | **Average Steps per Task** | 2 - 3 steps |
 | **Token Optimization** | Optimized short-term memory (last 4 messages) |
 | **Response Time** | ~3.2 seconds average |
@@ -42,7 +72,7 @@ The system follows a modular ReAct agent architecture, combining local vector se
 Follow these steps to set up and run the project locally:
 
 1. Clone the repository:
-   git clone [https://github.com/MiriYaakobi/study-agent.git](https://github.com/MiriYaakobi/study-agent.git)
+   git clone https://github.com/MiriYaakobi/study-agent.git
    cd study-agent
 
 2. Install dependencies using uv:
