@@ -144,24 +144,39 @@ def run_agent(user_message: str, max_steps: int = 5) -> str:
     sys_prompt = "אתה עוזר לימודים אישי. חובה: 1. חישובים - רק כלי חישוב. 2. תיאוריה - רק כלי חיפוש. 3. מיד אחרי קבלת תוצאה מהכלי - ענה למשתמש מיד ואל תקרא לכלי נוסף. 4. אל תמציא."
     messages = [{"role": "system", "content": sys_prompt}, {"role": "user", "content": user_message}]
     
+    total_tokens = 0 
+    
     for step in range(max_steps):
         log.info(f"--- Agent Step {step + 1} ---")
         try:
             response = call_with_retry(messages, tools)
+            
+            usage = response.usage
+            if usage:
+                total_tokens += usage.total_tokens
+                
             msg = response.choices[0].message
             messages.append(msg)
             
             if not msg.tool_calls:
+                log.info(f"Task token total: {total_tokens}")
                 return msg.content
                 
             for call in msg.tool_calls:
                 fn = available_tools[call.function.name]
                 args = json.loads(call.function.arguments)
+                
+                log.info(f"Step {step + 1} | tool={call.function.name} | args={args}")
+                
                 result = fn(**args)
+                
+                log.info(f"Step {step + 1} | tool result={str(result)[:100]}")
+                
                 messages.append({"role": "tool", "tool_call_id": call.id, "content": str(result)})
         except Exception as e:
             return f"Error occurred: {str(e)}"
             
+    log.info(f"Task token total: {total_tokens}")
     return "הגעתי למקסימום צעדים."
 
 def run_agent_stream(messages_history: list, max_steps: int = 5):
