@@ -202,12 +202,18 @@ def run_agent_stream(messages_history: list, max_steps: int = 5):
     )
     
     messages = [{"role": "system", "content": sys_prompt}]
-    
     messages.extend(messages_history[-4:])
+    
+    total_tokens = 0
     
     for step in range(max_steps):
         try:
             response = call_with_retry(messages, tools, stream=False)
+            
+            usage = response.usage
+            if usage:
+                total_tokens += usage.total_tokens
+                
             msg = response.choices[0].message
             
             if msg.tool_calls:
@@ -215,16 +221,23 @@ def run_agent_stream(messages_history: list, max_steps: int = 5):
                 for call in msg.tool_calls:
                     fn = available_tools[call.function.name]
                     args = json.loads(call.function.arguments)
+                    
+                    log.info(f"Step {step + 1} | tool={call.function.name} | args={args}")
                     result = fn(**args)
+                    log.info(f"Step {step + 1} | tool result={str(result)[:100]}")
+                    
                     messages.append({"role": "tool", "tool_call_id": call.id, "content": str(result)})
                 continue
                 
             if not msg.tool_calls:
+                log.info(f"Task token total: {total_tokens}")
                 yield msg.content or ""
                 return
-            
-        except Exception as e:
-            yield f"Error occurred: {str(e)}"
+                
+        except Exception:
+            log.exception("Streaming agent execution failed")
+            yield "אירעה שגיאה פנימית. נסי שוב בעוד רגע."
             return
             
+    log.info(f"Task token total: {total_tokens}")
     yield "הגעתי למקסימום צעדים."
