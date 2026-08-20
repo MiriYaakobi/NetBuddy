@@ -1,4 +1,4 @@
-# Study Agent Pro - Agent Context (AGENTS.md)
+# NetBuddy - Agent Context (AGENTS.md)
 
 ## Build & Run
 - Package Manager / Runner: `uv`
