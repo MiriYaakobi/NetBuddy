@@ -31,9 +31,11 @@ Here you can see the agent performing accurate subnetting calculations, retrievi
 
 ---
 
-### Automated Evaluations (6/6 Tests Passed)
+### Automated Evaluation
 
-Here you can see the terminal output of our evaluation suite. The agent successfully handled networking calculations, retrieved information from course notes, and blocked security injection attempts locally.
+The evaluation suite currently includes six checks for subnet calculations, networking-course retrieval, and one direct prompt-injection attempt. In the latest recorded run, all six checks passed.
+
+These checks cover a small set of expected behaviors and do not establish general protection against prompt injection.
 
 | | |
 | :---: | :---: |
@@ -89,8 +91,8 @@ The system follows a modular ReAct agent architecture, combining local vector se
 ### Installation
 1. Clone the repository:
 ```bash
-git clone https://github.com/MiriYaakobi/study-agent.git
-cd study-agent
+git clone https://github.com/MiriYaakobi/NetBuddy.git
+cd NetBuddy
 ```
 
 2. Install dependencies using uv:
@@ -138,7 +140,7 @@ uv run streamlit run app.py
 ## 📂 Project Structure
 
 ```text
-study-agent/
+NetBuddy/
 ├── app.py             # Streamlit UI & frontend logic
 ├── agent.py           # Core ReAct agent loop, tools, and Groq LLM integration
 ├── eval.py            # Automated terminal evaluation suite
